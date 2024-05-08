@@ -33,7 +33,8 @@ async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn
     println!("execute_workflow");
 
     let japanese_text = make_japanese(&command, &window).await?;
-    make_english(&japanese_text, &window).await?;
+    let english_text = make_english(&japanese_text, &window).await?;
+    save_text(&command, &japanese_text, &english_text, &window);
 
     Ok(())
 }
@@ -110,6 +111,31 @@ async fn get_mp3(text: String, file_name: String, window: &Window) -> Result<(),
 
     Ok(())
 }
+
+fn save_text(title: &str, japanese: &str, english: &str, window: &Window) -> String {
+    println!("save_text");
+
+    window.emit("add_to_output", Some("
+# SaveText")).expect("failed to emit event");
+
+    let file_name = "../output.txt";
+    let text = format!("# Title
+{}
+
+# Japanese
+{}
+
+# English
+{}", title, japanese, english);
+    std::fs::write(file_name, text).expect("failed to write file");
+
+    window.emit("add_to_output", Some(format!("FilePath: {}", file_name))).expect("failed to emit event");
+
+    file_name.to_string()
+}
+
+
+
 
 #[tokio::main]
 async fn main() {
