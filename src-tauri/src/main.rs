@@ -12,6 +12,8 @@ use async_openai::{
 };
 use tauri::{Window};
 
+const OUTPUT_FILE_BASE_PATH: &str = "../data/";
+
 #[tauri::command]
 fn submit_command(command: &str, window: Window) -> String {
     println!("submit_command: {}", command);
@@ -34,7 +36,7 @@ async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn
 
     let japanese_text = make_japanese(&command, &window).await?;
     let english_text = make_english(&japanese_text, &window).await?;
-    save_text(&command, &japanese_text, &english_text, &window);
+    save_text(&command, &japanese_text, &english_text, &window).await?;
 
     Ok(())
 }
@@ -44,7 +46,7 @@ async fn make_japanese(input: &str, window: &Window) -> Result<String, Box<dyn E
 
     let system_context = "あなたは生徒に質問に答える教師です。２００文字以内で答えてください。";
     let response_text = exec_chatgpt(system_context, input, window).await?;
-    get_mp3(response_text.clone(), format!("../{}.mp3", "japanese"), window).await?;
+    get_mp3(response_text.clone(), format!("{}.mp3", "ja"), window).await?;
 
     Ok(response_text)
 }
@@ -53,7 +55,7 @@ async fn make_english(japanese_text: &str, window: &Window) -> Result<String, Bo
     println!("make_english");
     let system_context = "あなたは日本語を英語に翻訳するアシスタントです。";
     let response_text = exec_chatgpt(system_context, japanese_text, window).await?;
-    get_mp3(response_text.clone(), format!("../{}.mp3", "english"), window).await?;
+    get_mp3(response_text.clone(), format!("{}.mp3", "en"), window).await?;
 
     Ok(response_text)
 }
@@ -105,20 +107,21 @@ async fn get_mp3(text: String, file_name: String, window: &Window) -> Result<(),
         .build()?;
 
     let response = client.audio().speech(request).await?;
-    response.save(file_name.clone()).await?;
+    let full_file_name = format!("{}{}", OUTPUT_FILE_BASE_PATH, file_name);
+    response.save(full_file_name.clone()).await?;
 
-    window.emit("add_to_output", Some(format!("FilePath: {}", file_name))).expect("failed to emit event");
+    window.emit("add_to_output", Some(format!("FilePath: {}", full_file_name))).expect("failed to emit event");
 
     Ok(())
 }
 
-fn save_text(title: &str, japanese: &str, english: &str, window: &Window) -> String {
+async fn save_text(title: &str, japanese: &str, english: &str, window: &Window) -> Result<String, Box<dyn Error>> {
     println!("save_text");
 
     window.emit("add_to_output", Some("
 # SaveText")).expect("failed to emit event");
 
-    let file_name = "../output.txt";
+    let file_name = format!("{}output.txt", OUTPUT_FILE_BASE_PATH);
     let text = format!("# Title
 {}
 
@@ -127,18 +130,21 @@ fn save_text(title: &str, japanese: &str, english: &str, window: &Window) -> Str
 
 # English
 {}", title, japanese, english);
-    std::fs::write(file_name, text).expect("failed to write file");
+    std::fs::write(file_name.clone(), text).expect("failed to write file");
 
     window.emit("add_to_output", Some(format!("FilePath: {}", file_name))).expect("failed to emit event");
 
-    file_name.to_string()
+    Ok(file_name.to_string())
 }
 
 
-
+fn ensure_directory_exists() {
+    std::fs::create_dir_all(OUTPUT_FILE_BASE_PATH).expect("failed to create directory");
+}
 
 #[tokio::main]
 async fn main() {
+    ensure_directory_exists();
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![submit_command])
         .run(tauri::generate_context!())
