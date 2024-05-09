@@ -21,7 +21,6 @@ fn submit_command(command: &str, window: Window) -> String {
 
     tokio::spawn(async move {
         println!("thread");
-        //execute_workflow(command_owned, window)
         if let Err(e) = execute_workflow(command_owned, window).await {
             eprintln!("Failed to execute workflow: {}", e);
         }
@@ -34,28 +33,30 @@ fn submit_command(command: &str, window: Window) -> String {
 async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn Error>> {
     println!("execute_workflow");
 
-    let japanese_text = make_japanese(&command, &window).await?;
-    let english_text = make_english(&japanese_text, &window).await?;
-    save_text(&command, &japanese_text, &english_text, &window).await?;
+    let file_prefix = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+
+    let japanese_text = make_japanese(&command, &file_prefix, &window).await?;
+    let english_text = make_english(&japanese_text, &file_prefix, &window).await?;
+    save_text(&command, &japanese_text, &english_text, &file_prefix, &window).await?;
 
     Ok(())
 }
 
-async fn make_japanese(input: &str, window: &Window) -> Result<String, Box<dyn Error>> {
+async fn make_japanese(input: &str, file_prefix: &str ,window: &Window) -> Result<String, Box<dyn Error>> {
     println!("make_japanese");
 
     let system_context = "あなたは生徒に質問に答える教師です。２００文字以内で答えてください。";
     let response_text = exec_chatgpt(system_context, input, window).await?;
-    get_mp3(response_text.clone(), format!("{}.mp3", "ja"), window).await?;
+    get_mp3(response_text.clone(), format!("{}-ja.mp3", file_prefix), window).await?;
 
     Ok(response_text)
 }
 
-async fn make_english(japanese_text: &str, window: &Window) -> Result<String, Box<dyn Error>> {
+async fn make_english(japanese_text: &str, file_prefix: &str ,window: &Window) -> Result<String, Box<dyn Error>> {
     println!("make_english");
     let system_context = "あなたは日本語を英語に翻訳するアシスタントです。";
     let response_text = exec_chatgpt(system_context, japanese_text, window).await?;
-    get_mp3(response_text.clone(), format!("{}.mp3", "en"), window).await?;
+    get_mp3(response_text.clone(), format!("{}-en.mp3", file_prefix), window).await?;
 
     Ok(response_text)
 }
@@ -115,13 +116,13 @@ async fn get_mp3(text: String, file_name: String, window: &Window) -> Result<(),
     Ok(())
 }
 
-async fn save_text(title: &str, japanese: &str, english: &str, window: &Window) -> Result<String, Box<dyn Error>> {
+async fn save_text(title: &str, japanese: &str, english: &str, file_prefix: &str, window: &Window) -> Result<String, Box<dyn Error>> {
     println!("save_text");
 
     window.emit("add_to_output", Some("
 # SaveText")).expect("failed to emit event");
 
-    let file_name = format!("{}output.txt", OUTPUT_FILE_BASE_PATH);
+    let file_name = format!("{}{}.txt", OUTPUT_FILE_BASE_PATH, file_prefix);
     let text = format!("# Title
 {}
 
