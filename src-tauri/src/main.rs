@@ -45,7 +45,7 @@ async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn
 async fn make_japanese(input: &str, file_prefix: &str ,window: &Window) -> Result<String, Box<dyn Error>> {
     println!("make_japanese");
 
-    let system_context = "あなたは生徒に質問に答える教師です。２００文字以内で答えてください。";
+    let system_context = "あなたは生徒に質問に答える教師です。300文字以内で答えてください。";
     let response_text = exec_chatgpt(system_context, input, window).await?;
     get_mp3(response_text.clone(), format!("{}-ja.mp3", file_prefix), window).await?;
 
