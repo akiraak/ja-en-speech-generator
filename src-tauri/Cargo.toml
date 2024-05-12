@@ -17,6 +17,7 @@ serde_json = "1"
 async-openai = "0.20.0"
 tokio = "1.37.0"
 chrono = "0.4"
+rodio = "0.18"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
