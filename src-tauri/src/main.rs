@@ -25,7 +25,7 @@ fn submit_command(command: &str, window: Window) -> String {
     let command_owned = command.to_string();
 
     tokio::spawn(async move {
-        println!("thread");
+        //println!("thread");
         if let Err(e) = execute_workflow(command_owned, window).await {
             eprintln!("Failed to execute workflow: {}", e);
         }
@@ -52,7 +52,14 @@ async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn
         ], &merged_mp3_output_path)
         .map_err(|e| Box::new(e) as Box<dyn Error>)?;
 
+    window.emit("add_to_output", Some(format!("
+# MargeMP3
+FilePath: {}", merged_mp3_output_path))).expect("failed to emit event");
+
     play_mp3(&merged_mp3_output_path)?;
+
+    window.emit("add_to_output", Some(format!("
+Done!"))).expect("failed to emit event");
 
     Ok(())
 }
@@ -97,10 +104,15 @@ async fn make_english(japanese_text: &str, file_prefix: &str ,window: &Window) -
 async fn exec_chatgpt(system_context: &str, user_context: &str, window: &Window) -> Result<String, Box<dyn Error>> {
     println!("exec_chatgpt");
 
+    /* 
     window.emit("add_to_output", Some(format!("
 # ChatGPT
 SystemContent: {}
 UserContent: {}", system_context, user_context))).expect("failed to emit event");
+    */
+    println!("# ChatGPT
+SystemContent: {}
+UserContent: {}", system_context, user_context);
 
     let client = Client::new();
     let request = CreateChatCompletionRequestArgs::default()
@@ -119,7 +131,9 @@ UserContent: {}", system_context, user_context))).expect("failed to emit event")
             choice.index, choice.message.role, choice.message.content
         );
         if let Some(content) = choice.message.content {
-            window.emit("add_to_output", Some(format!("Response: {}", content))).expect("failed to emit event");
+            window.emit("add_to_output", Some(format!("
+# ChatGPT
+Response: {}", content))).expect("failed to emit event");
             return Ok(content);
         }
     }
