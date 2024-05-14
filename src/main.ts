@@ -5,13 +5,20 @@ async function setup() {
   const commandInputEl = document.querySelector<HTMLInputElement>("#command-input");
   const outputEl = document.querySelector<HTMLElement>("#output");
 
+  const addOutput = (text: string) => {
+    if (outputEl) {
+      outputEl.textContent += `\n${text}`;
+      outputEl.scrollTop = outputEl.scrollHeight;
+    }
+  };
+
   const submitCommand = async () => {
     if (!commandInputEl || !outputEl) return;
 
     const command = commandInputEl.value;
     commandInputEl.value = "";
     const response = await invoke("submit_command", {command: command});
-    outputEl.textContent += `\n${response}`;
+    addOutput(response as string);
   };
 
   document.querySelector<HTMLFormElement>("#command-form")?.addEventListener("submit", (e) => {
@@ -20,9 +27,7 @@ async function setup() {
   });
 
   listen('add_to_output', event => {
-    if (outputEl) {
-      outputEl.textContent += `\n${event.payload}`;
-    }
+    addOutput(event.payload as string);
   });
 }
 

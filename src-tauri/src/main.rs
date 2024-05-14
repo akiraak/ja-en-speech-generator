@@ -13,7 +13,7 @@ use async_openai::{
     },
     Client,
 };
-use rodio::{Decoder, OutputStream, source::Source};
+use rodio::{Decoder, OutputStream, Sink, Source};
 use tauri::{Window};
 
 const OUTPUT_FILE_BASE_PATH: &str = "../data/";
@@ -52,7 +52,7 @@ async fn execute_workflow(command: String, window: Window) -> Result<(), Box<dyn
         ], &merged_mp3_output_path)
         .map_err(|e| Box::new(e) as Box<dyn Error>)?;
 
-    play_mp3(&merged_mp3_output_path).expect("failed to play mp3");
+    play_mp3(&merged_mp3_output_path)?;
 
     Ok(())
 }
@@ -85,7 +85,6 @@ async fn make_english(japanese_text: &str, file_prefix: &str ,window: &Window) -
     let mp3_file_path = format!("{}{}-en.mp3", OUTPUT_FILE_BASE_PATH, file_prefix);
     get_mp3(response_text.clone(), org_mp3_file_path.clone(), window).await?;
 
-    let silence_mp3_path = "../silence_1sec.mp3";
     marge_mp3_files(&[
             "../silence_1sec.mp3",
             &org_mp3_file_path
@@ -106,7 +105,7 @@ UserContent: {}", system_context, user_context))).expect("failed to emit event")
     let client = Client::new();
     let request = CreateChatCompletionRequestArgs::default()
         .max_tokens(512u16)
-        .model("gpt-4-turbo")
+        .model("gpt-4o")
         .messages([
             ChatCompletionRequestSystemMessageArgs::default().content(system_context).build()?.into(),
             ChatCompletionRequestUserMessageArgs::default().content(user_context).build()?.into(),
@@ -171,28 +170,6 @@ async fn save_text(title: &str, japanese: &str, english: &str, file_prefix: &str
     Ok(file_name.to_string())
 }
 
-fn play_mp3(file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    // オーディオデバイスのストリームとサウンドハンドラを取得
-    let (_stream, stream_handle) = OutputStream::try_default()?;
-
-    // MP3ファイルを開く
-    let file = File::open(file_path)?;
-    let reader = BufReader::new(file);
-
-    // ファイルをデコード
-    let source = Decoder::new_mp3(reader)?;
-
-    // ファイルを再生
-    stream_handle.play_raw(source.convert_samples())?;
-
-    // 再生が終了するまで待機
-    println!("再生中... Enterを押すと終了します。");
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-
-    Ok(())
-}
-
 fn marge_mp3_files(files: &[&str], output_file: &str) -> std::io::Result<()> {
     // リストファイルを作成
     let mut list_file = File::create(MARGE_MP3_LIST_FILE_PATH)?;
@@ -211,6 +188,21 @@ fn marge_mp3_files(files: &[&str], output_file: &str) -> std::io::Result<()> {
         eprintln!("Failed to concatenate MP3 files.");
         return Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to concatenate MP3 files"));
     }
+
+    Ok(())
+}
+
+fn play_mp3(file_path: &str) -> Result<(), Box<dyn Error>> {
+    println!("play_mp3");
+
+    let (_stream, stream_handle) = OutputStream::try_default()?;
+    let sink = Sink::try_new(&stream_handle)?;
+
+    let file = BufReader::new(File::open(file_path)?);
+    let source = Decoder::new(file)?.convert_samples::<f32>();
+
+    sink.append(source);
+    sink.sleep_until_end();
 
     Ok(())
 }
